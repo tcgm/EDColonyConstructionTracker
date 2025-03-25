@@ -2,11 +2,16 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="script-src 'self' 'unsafe-inline'"
-    />
-    <title>Hello Electron React!</title>
+    <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self' blob: data:;
+    connect-src 'self' https://cdn.jsdelivr.net blob: data:;
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net;
+    worker-src 'self' blob: https://cdn.jsdelivr.net;
+    style-src 'self' 'unsafe-inline';
+    script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net;
+  "/>
+
+    <title>ED Colony Construction Tracker</title>
   </head>
   <body>
     <div id="root"></div>
