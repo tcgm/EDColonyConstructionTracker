@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as Tesseract from 'tesseract.js'; // Browser version w/ types
-const Fuse = require('fuse.js')// 1) Import Jimp as a namespace
-import { Jimp } from "jimp";
-import { Buffer } from 'buffer';
+const Fuse = require('fuse.js');
+// Removed Jimp and Buffer imports since we’re now using image‑js
+// import { Jimp } from "jimp";
+// import { Buffer } from 'buffer';
+import { Image } from 'image-js';
 
 import EDPanel from './components/EDPanel';
 import EDHeader from './components/EDHeader';
@@ -14,9 +16,69 @@ import './App.css';
 
 import { KNOWN_COMMODITIES } from './edCommods';
 
-// 2) Cast JimpAll to `any` so TS won't complain about read/MIME_PNG
-//const Jimp = JimpAll as any;
+// 1️⃣ Create fuzzy matcher for known commodities
+const fuse = new Fuse(KNOWN_COMMODITIES, {
+  includeScore: true,
+  threshold: 0.4, // Adjust as needed
+});
 
+function fuzzyCorrect(rawName: string) {
+  const result = fuse.search(rawName);
+  if (result.length && result[0].score! < 0.3) {
+    return result[0].item; // best match
+  }
+  return rawName;
+}
+
+async function preprocessImage(file: File): Promise<Blob> {
+  console.log('[preprocessImage] Starting preprocessing for file:', file.name);
+  
+  // Convert file to ArrayBuffer
+  const arrayBuffer = await file.arrayBuffer();
+  console.log('[preprocessImage] File converted to ArrayBuffer');
+  
+  // Convert ArrayBuffer to Uint8Array (expected by image‑js)
+  const uint8Array = new Uint8Array(arrayBuffer);
+  console.log('[preprocessImage] ArrayBuffer converted to Uint8Array');
+  
+  // Load the image using image‑js
+  const image = await Image.load(uint8Array);
+  console.log('[preprocessImage] Image loaded using image‑js');
+  
+  // Convert the image to grayscale
+  const greyImage = image.grey();
+  console.log('[preprocessImage] Image converted to grayscale');
+  
+  // Convert the processed image to a Data URL (base64 string)
+  const dataUrl = greyImage.toDataURL('image/png');
+  console.log('[preprocessImage] Converted image to Data URL');
+  
+  // Helper: Convert Data URL to Blob
+  function dataURLToBlob(dataURL: string): Blob {
+    console.log('[dataURLToBlob] Converting Data URL to Blob');
+    const parts = dataURL.split(',');
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    if (!mimeMatch) {
+      throw new Error('Invalid data URL');
+    }
+    const mime = mimeMatch[1];
+    const bstr = atob(parts[1]);
+    const n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+      u8arr[i] = bstr.charCodeAt(i);
+    }
+    const blob = new Blob([u8arr], { type: mime });
+    console.log('[dataURLToBlob] Blob created successfully');
+    return blob;
+  }
+  
+  const blob = dataURLToBlob(dataUrl);
+  console.log('[preprocessImage] Preprocessing complete, returning Blob');
+  return blob;
+}
+
+// 3️⃣ Handle drop => Preprocess => OCR => fuzzy match
 function EDApp() {
   const [lines, setLines] = useState<string[]>([]);
   const [deliveries, setDeliveries] = useState<Record<string, number>>({});
@@ -30,131 +92,73 @@ function EDApp() {
 
   const ipc = window.electron.ipcRenderer;
 
-  // 1️⃣ Create fuzzy matcher for known commodities
-  const fuse = new Fuse(KNOWN_COMMODITIES, {
-    includeScore: true,
-    threshold: 0.4, // Adjust as needed
-  });
-
-  function fuzzyCorrect(rawName: string) {
-    const result = fuse.search(rawName);
-    if (result.length && result[0].score! < 0.3) {
-      return result[0].item; // best match
-    }
-    return rawName;
-  }
-  
-  async function preprocessImage(file: File): Promise<Blob> {
-    console.log('[preprocessImage] Starting preprocessing for file:', file.name);
-    
-    // Convert file to ArrayBuffer and then to Node Buffer
-    const buffer = await file.arrayBuffer();
-    console.log('[preprocessImage] File converted to ArrayBuffer');
-    const nodeBuffer = Buffer.from(buffer);
-    console.log('[preprocessImage] ArrayBuffer converted to Node Buffer');
-    
-    const image = await Jimp.read(nodeBuffer);
-    console.log('[preprocessImage] Image loaded into Jimp');
-    
-    // Apply grayscale and contrast adjustments
-    //image.greyscale().contrast(1);
-    console.log('[preprocessImage] Applied greyscale and contrast adjustments');
-    
-    // Use 'image/png' as MIME type
-    const mimePNG = 'image/png';
-    
-    // Use getBase64 instead of getBuffer to obtain a base64 string
-    const processedBase64 = await Promise.race([
-      new Promise<string>((resolve, reject) => {
-        image.getBase64(mimePNG, (err: any, data: string) => {
-          if (err) {
-            return reject(err);
-          }
-          resolve(data);
-        });
-      }),
-      new Promise<string>((_, reject) =>
-        setTimeout(() => reject(new Error('Conversion timed out')), 5000)
-      ),
-    ]);
-    
-    
-    
-    // Helper: Convert base64 string to Blob
-    function base64ToBlob(base64: string, type: string): Blob {
-      console.log('[base64ToBlob] Converting base64 to Blob');
-      const base64Data = base64.split(',')[1]; // Remove data:*;base64, prefix
-      console.log('[base64ToBlob] Base64 data extracted');
-      const byteCharacters = atob(base64Data);
-      console.log('[base64ToBlob] Base64 decoded');
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      console.log('[base64ToBlob] Byte array created');
-      const byteArray = new Uint8Array(byteNumbers);
-      console.log('[base64ToBlob] Uint8Array created');
-      const blob = new Blob([byteArray], { type });
-      console.log('[base64ToBlob] Blob created successfully');
-      return blob;
-    }
-    console.log('[base64ToBlob] Converting base64 to Blob start');
-    
-    const blob = await base64ToBlob(processedBase64, mimePNG);
-    console.log('[preprocessImage] Preprocessing complete, returning Blob');
-    return blob;
-  }
-  
-  
-
-  // 3️⃣ Handle drop => Preprocess => OCR => fuzzy match
   useEffect(() => {
     const handleDrop = async (e: DragEvent) => {
       e.preventDefault();
       const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
       console.log('[renderer] Dropped files:', files.map(f => f.name));
 
-      if (!files.length) return;
+      if (!files.length) {
+        console.log('[handleDrop] No files dropped');
+        return;
+      }
+
+      console.log('[handleDrop] Total files dropped:', files.length);
 
       const totalFiles = files.length;
       let allOcrLines: string[] = [];
 
       for (let i = 0; i < totalFiles; i++) {
         const file = files[i];
+        console.log(`[handleDrop] Processing file ${i + 1} of ${totalFiles}:`, file.name);
+
         try {
-          // Preprocess with Jimp
+          // Preprocess with image‑js
+          console.log(`[handleDrop] Preprocessing file: ${file.name}`);
           const preprocessedBlob = await preprocessImage(file);
+          console.log(`[handleDrop] Preprocessing complete for file: ${file.name}`);
+
           // Create object URL
           const objectUrl = URL.createObjectURL(preprocessedBlob);
+          console.log(`[handleDrop] Created object URL for file: ${file.name}`);
 
           // OCR with Tesseract
-          // 4) We cast the options to `any` so TS doesn't complain about `tessedit_char_whitelist`
+          console.log(`[handleDrop] Starting OCR for file: ${file.name}`);
           const result = await Tesseract.recognize(objectUrl, 'eng', {
-            logger: (m: any) => {
-              if (m.status === 'recognizing text') {
-                const portion = 1 / totalFiles;
-                const overall = i * portion + m.progress * portion;
-                setOcrProgress(overall);
-              }
-            },
-            // @ts-ignore
-            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ,-',
-            // @ts-ignore
-            psm: 6,
+        logger: (m: any) => {
+          if (m.status === 'recognizing text') {
+            const portion = 1 / totalFiles;
+            const overall = i * portion + m.progress * portion;
+            setOcrProgress(overall);
+            console.log(`[handleDrop] OCR progress for file ${file.name}:`, (m.progress * 100).toFixed(1) + '%');
+          }
+        },
+        // @ts-ignore
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ',
+        // @ts-ignore
+        psm: 6,
           } as any);
 
+          console.log(`[handleDrop] OCR complete for file: ${file.name}`);
           const text = result.data.text;
+          console.log(`[handleDrop] OCR result for file ${file.name}:`, text);
+
           const fileLines = text
-            .split('\n')
-            .map(line => line.trim())
-            .filter(Boolean);
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
+          console.log(`[handleDrop] Extracted lines from file ${file.name}:`, fileLines);
+
           allOcrLines.push(...fileLines);
 
           URL.revokeObjectURL(objectUrl);
+          console.log(`[handleDrop] Revoked object URL for file: ${file.name}`);
         } catch (err) {
-          console.error('OCR error:', err);
+          console.error(`[handleDrop] OCR error for file ${file.name}:`, err);
         }
       }
+
+      console.log('[handleDrop] All OCR lines:', allOcrLines);
 
       setOcrProgress(1); // done
       setTimeout(() => setOcrProgress(0), 500); // reset after short delay
