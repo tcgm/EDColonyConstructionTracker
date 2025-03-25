@@ -9,11 +9,23 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, Tray, Menu, dialog } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
+const fs = require('fs');
+const Tesseract = require('tesseract.js');
+const os = require('os');
+
+/* Electron DevTools autofill spam patch */
+// process.stderr.write = ((write) => {
+//   return (msg: any, ...args: any[]) => {
+//     if (msg.includes('Autofill')) return false;
+//     return write.call(process.stderr, msg, ...args);
+//   };
+// })(process.stderr.write);
+
 
 class AppUpdater {
   constructor() {
@@ -22,6 +34,13 @@ class AppUpdater {
     autoUpdater.checkForUpdatesAndNotify();
   }
 }
+
+let tray = null;
+let splash: BrowserWindow | null = null;
+
+// Detect development mode
+const isDev = !app.isPackaged;
+
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -69,15 +88,58 @@ const createWindow = async () => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
+  
+  // 1️⃣ Create splash screen
+  splash = new BrowserWindow({
+    width: 400,
+    height: 300,
+    frame: false,
+    alwaysOnTop: false,
+    transparent: false,
+    resizable: false,
+    show: true
+  });
+  
+  const splashPath = isDev
+  ? path.join(__dirname, '../../src/static/splash.html')
+  : path.join(process.resourcesPath, 'static/splash.html');
+
+  splash.loadFile(splashPath);
+  
+  splash.moveTop();
+
+  setTimeout(() => {
+    if (splash && !splash.isDestroyed()) {
+      try {
+        splash.close();
+      } catch (e) {
+        console.warn('Splash already closed:', e);
+      }
+    }
+
+    splash = null;
+  
+    if (mainWindow && !mainWindow.isVisible()) {
+      if (mainWindow) {
+        mainWindow.show();
+      }
+    }
+  }, 10000);
+  
+
+  // 2️⃣ Create main window
   mainWindow = new BrowserWindow({
     show: false,
-    width: 1024,
-    height: 728,
+    width: 1280,
+    height: 720,
     icon: getAssetPath('icon.png'),
     webPreferences: {
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
+      contextIsolation: true,
+      sandbox: false,
+      nodeIntegration: false
     },
   });
 
@@ -89,8 +151,10 @@ const createWindow = async () => {
     }
     if (process.env.START_MINIMIZED) {
       mainWindow.minimize();
+      splash?.close();
     } else {
       mainWindow.show();
+      splash?.close();
     }
   });
 
@@ -110,7 +174,68 @@ const createWindow = async () => {
   // Remove this if your app does not use auto updates
   // eslint-disable-next-line
   new AppUpdater();
-};
+
+  // File Drop Hack
+// console.log('[main] Setting up will-navigate handler');
+//  // 🛑 Intercept file:// drag-and-drop navigation
+//  mainWindow.webContents.on('will-navigate', (event, url) => {
+//   console.log('[main] will-navigate triggered with URL:', url);
+//   event.preventDefault();
+
+//   const decodedPath = decodeURIComponent(new URL(url).pathname);
+//   const actualPath =
+//     process.platform === 'win32' && decodedPath.startsWith('/')
+//       ? decodedPath.slice(1)
+//       : decodedPath;
+
+//   console.log('[main] File dropped:', actualPath);
+
+//   if (/\.(png|jpg|jpeg|bmp|gif)$/i.test(actualPath)) {
+//     mainWindow?.webContents.send('files-dropped', [actualPath]);
+//   }
+// });
+
+
+// // ✅ Stop new-window behavior too (e.g., Mac or middle-click drag)
+// mainWindow.webContents.setWindowOpenHandler(() => {
+//   return { action: 'deny' };
+// });
+
+// // ✅ Optionally block all external URLs from opening
+// // mainWindow.webContents.on('new-window', (e) => {
+// //   e.preventDefault();
+// // });
+
+// app.on('open-file', (event, path) => {
+//   event.preventDefault();
+//   mainWindow?.webContents.send('files-dropped', [path]);
+// });
+
+  
+  // 3️⃣ Tray icon & menu
+  try {
+    const iconPath = path.join(__dirname, 'icon.png');
+    if (fs.existsSync(iconPath)) {
+      tray = new Tray(iconPath);
+      const contextMenu = Menu.buildFromTemplate([
+        { label: 'Show App', click: () => mainWindow && mainWindow.show() },
+        { label: 'Quit', click: () => app.quit() }
+      ]);
+      tray.setToolTip('ED Colony Construction Tracker');
+      tray.setContextMenu(contextMenu);
+      tray.on('click', () => {
+        if (mainWindow) {
+          mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+        }
+      });
+    } else {
+      console.warn('Tray icon not found, skipping tray setup.');
+    }
+  } catch (err) {
+    console.error('Tray setup failed:', err);
+  }
+}
+  
 
 /**
  * Add event listeners...
@@ -126,8 +251,11 @@ app.on('window-all-closed', () => {
 
 app
   .whenReady()
-  .then(() => {
-    createWindow();
+  .then(async () => {
+    await createWindow();
+
+    watchEliteDangerousLogs();
+
     app.on('activate', () => {
       // On macOS it's common to re-create a window in the app when the
       // dock icon is clicked and there are no other windows open.
@@ -135,3 +263,95 @@ app
     });
   })
   .catch(console.log);
+
+  function watchEliteDangerousLogs() {
+    const journalDir = path.join(os.homedir(), 'Saved Games', 'Frontier Developments', 'Elite Dangerous');
+    if (!fs.existsSync(journalDir)) return;
+  
+    fs.watch(journalDir, (eventType: any, filename: string) => {
+      if (filename?.startsWith('Journal') && filename.endsWith('.log')) {
+        if (mainWindow) {
+          mainWindow.webContents.send('journal-updated');
+        }
+      }
+    });
+  }
+  
+
+  // 5️⃣ IPC handlers
+  ipcMain.handle('parse-images', async (e, filePaths) => {
+    if (!Array.isArray(filePaths) || filePaths.length === 0) {
+      return { error: 'No file paths provided or invalid input.' };
+    }
+  
+    let lines = [];
+    try {
+      for (const file of filePaths) {
+        if (!fs.existsSync(file)) {
+          console.warn(`File not found: ${file}`);
+          continue;
+        }
+  
+        const result = await Tesseract.recognize(file, 'eng').catch((err: any) => {
+          console.error(`Error processing file ${file}:`, err);
+          return null;
+        });
+  
+        if (result && result.data && result.data.text) {
+          const rawLines = result.data.text
+            .split('\n')
+            .map((line: string) => line.trim())
+            .filter(Boolean);
+          lines.push(...rawLines);
+        } else {
+          console.warn(`No text recognized in file: ${file}`);
+        }
+      }
+    } catch (err) {
+      console.error('Unexpected error during image parsing:', err);
+      return { error: 'An unexpected error occurred during image parsing.' };
+    }
+  
+    return lines.length > 0 ? lines : { error: 'No text could be extracted from the provided images.' };
+  });
+
+  /* ipcMain.on('files-dropped', (event, filePaths: string[]) => {
+    console.log('[main] Received file paths:', filePaths);
+    mainWindow?.webContents.send('files-dropped', filePaths);
+  }); */
+  
+  
+  
+  
+  ipcMain.handle('load-logs', async () => {
+    const journalDir = path.join(os.homedir(), 'Saved Games', 'Frontier Developments', 'Elite Dangerous');
+    let deliveries: { [key: string]: number } = {};
+    if (!fs.existsSync(journalDir)) return deliveries;
+  
+    const files = fs.readdirSync(journalDir).filter((f: string) => f.startsWith('Journal') && f.endsWith('.log'));
+    for (const file of files) {
+      const lines = fs.readFileSync(path.join(journalDir, file), 'utf-8').split('\n');
+      for (const line of lines) {
+        if (line.includes('"event":"MarketSell"')) {
+          try {
+            const entry = JSON.parse(line);
+            const name = entry.Type.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
+            deliveries[name] = (deliveries[name] || 0) + entry.Count;
+          } catch { continue; }
+        }
+      }
+    }
+    return deliveries;
+  });
+  
+  ipcMain.handle('export-csv', async (e, rows) => {
+    const { canceled, filePath } = await dialog.showSaveDialog({ 
+      defaultPath: 'export.csv', filters: [{ name: 'CSV', extensions: ['csv'] }] });
+    if (canceled || !filePath) return null;
+  
+    const csv = ['Commodity,Delivered,Required,Remaining', ...rows.map((r: any[]) => r.join(','))].join('\n');
+    fs.writeFileSync(filePath, csv, 'utf-8');
+    return filePath;
+  });
+
+  
