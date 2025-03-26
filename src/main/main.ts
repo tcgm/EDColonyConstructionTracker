@@ -323,7 +323,7 @@ app
   
   
   
-  ipcMain.handle('load-logs', async () => {
+ /*  ipcMain.handle('load-logs', async () => {
     const journalDir = path.join(os.homedir(), 'Saved Games', 'Frontier Developments', 'Elite Dangerous');
     let deliveries: { [key: string]: number } = {};
     if (!fs.existsSync(journalDir)) return deliveries;
@@ -342,7 +342,75 @@ app
       }
     }
     return deliveries;
-  });
+  }); */
+
+  // In‑memory cache for log data.
+let logCache: {
+  deliveries: { [key: string]: number };
+  fileTimestamps: { [filename: string]: number };
+} | null = null;
+
+ipcMain.handle('load-logs', async () => {
+  const journalDir = path.join(
+    os.homedir(),
+    'Saved Games',
+    'Frontier Developments',
+    'Elite Dangerous'
+  );
+  let deliveries: { [key: string]: number } = {};
+  if (!fs.existsSync(journalDir)) return deliveries;
+
+  // Get list of log files
+  const files = fs
+    .readdirSync(journalDir)
+    .filter((f: string) => f.startsWith('Journal') && f.endsWith('.log'));
+
+  let needReload = false;
+  const currentTimestamps: { [filename: string]: number } = {};
+
+  // Check each file's modification time.
+  for (const file of files) {
+    const filePath = path.join(journalDir, file);
+    const stats = fs.statSync(filePath);
+    currentTimestamps[file] = stats.mtimeMs;
+    // If there's no cache or the file timestamp differs, we need to reload.
+    if (!logCache || !logCache.fileTimestamps[file] || logCache.fileTimestamps[file] !== stats.mtimeMs) {
+      needReload = true;
+    }
+  }
+
+  // If nothing changed, return the cached deliveries.
+  if (!needReload && logCache) {
+    return logCache.deliveries;
+  }
+
+  // Otherwise, re-read and process the log files.
+  for (const file of files) {
+    const filePath = path.join(journalDir, file);
+    const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+    for (const line of lines) {
+      if (line.includes('"event":"MarketSell"')) {
+        try {
+          const entry = JSON.parse(line);
+          const name = entry.Type
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, (l: string) => l.toUpperCase());
+          deliveries[name] = (deliveries[name] || 0) + entry.Count;
+        } catch {
+          continue;
+        }
+      }
+    }
+  }
+
+  // Update the cache with the new deliveries and file timestamps.
+  logCache = {
+    deliveries,
+    fileTimestamps: currentTimestamps,
+  };
+
+  return deliveries;
+});
   
   ipcMain.handle('export-csv', async (e, rows) => {
     const { canceled, filePath } = await dialog.showSaveDialog({ 
