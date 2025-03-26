@@ -28,7 +28,7 @@ This project is a tool designed to help track and manage the construction of col
 
 1. Clone the repository:
   ```bash
-  git clone https://github.com/tcgm/ed-colony-construction-tracker.git
+  git clone https://github.com/tcgm/EDColonyConstructionTracker.git
   ```
 2. Navigate to the project directory:
   ```bash
