@@ -1,6 +1,7 @@
 {
-  "name": "electron-react-boilerplate",
-  "description": "A foundation for scalable desktop apps",
+  "name": "elite-dangerous-colony-construction-tracker",
+  "description": "Elite Dangerous Colony Construction Tracker",
+  "version": "1.0.0",
   "keywords": [
     "electron",
     "boilerplate",
@@ -12,27 +13,19 @@
     "hot",
     "reload"
   ],
-  "homepage": "https://github.com/electron-react-boilerplate/electron-react-boilerplate#readme",
+  "homepage": "https://github.com/tcgm/EDColonyConstructionTracker#readme",
   "bugs": {
-    "url": "https://github.com/electron-react-boilerplate/electron-react-boilerplate/issues"
+    "url": "https://github.com/tcgm/EDColonyConstructionTracker/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/electron-react-boilerplate/electron-react-boilerplate.git"
+    "url": "git+https://github.com/tcgm/EDColonyConstructionTracker.git"
   },
   "license": "MIT",
   "author": {
-    "name": "Electron React Boilerplate Maintainers",
-    "email": "electronreactboilerplate@gmail.com",
-    "url": "https://electron-react-boilerplate.js.org"
+    "name": "TCGM",
+    "url": "https://thecrazygamemaster.com"
   },
-  "contributors": [
-    {
-      "name": "Amila Welihinda",
-      "email": "amilajack@gmail.com",
-      "url": "https://github.com/amilajack"
-    }
-  ],
   "main": "./.erb/dll/main.bundle.dev.js",
   "scripts": {
     "build": "concurrently \"npm run build:main\" \"npm run build:renderer\"",
@@ -184,8 +177,8 @@
     "webpack-merge": "^6.0.1"
   },
   "build": {
-    "productName": "ElectronReact",
-    "appId": "org.erb.ElectronReact",
+    "productName": "Elite Dangerous Colony Construction Tracker",
+    "appId": "org.tcgm.edcct",
     "asar": true,
     "asarUnpack": "**\\*.{node,dll}",
     "files": [
@@ -211,34 +204,49 @@
     },
     "dmg": {
       "contents": [
-        {
-          "x": 130,
-          "y": 220
-        },
-        {
-          "x": 410,
-          "y": 220,
-          "type": "link",
-          "path": "/Applications"
-        }
-      ]
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+      ],
+      "format": "UDZO",
+      "window": {
+      "width": 540,
+      "height": 380
+      },
+      "icon": "assets/icon.icns",
+      "background": "assets/dmg-background.png"
     },
     "win": {
       "target": [
-        {
-          "target": "portable",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
-        }
-      ]
+      {
+        "target": "portable",
+        "arch": [
+        "x64",
+        "ia32"
+        ]
+      }
+      ],
+      "icon": "assets/icon.ico"
     },
     "linux": {
       "target": [
-        "AppImage"
+      {
+        "target": "portable",
+        "arch": [
+        "x64",
+        "arm64"
+        ]
+      }
       ],
-      "category": "Development"
+      "category": "Development",
+      "icon": "assets/icon.ico"
     },
     "directories": {
       "app": "release/app",
@@ -250,12 +258,9 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "electron-react-boilerplate",
-      "repo": "electron-react-boilerplate"
+      "owner": "tcgm",
+      "repo": "tcgm"
     }
-  },
-  "collective": {
-    "url": "https://opencollective.com/electron-react-boilerplate-594"
   },
   "devEngines": {
     "runtime": {
