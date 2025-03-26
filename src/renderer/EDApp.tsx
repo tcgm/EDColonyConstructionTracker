@@ -79,13 +79,13 @@ async function preprocessImage(file: File): Promise<Blob> {
 
 // Normalize OCR lines to fix common misreads.
 function normalizeOcrLine(line: string): string {
-  // Replace misrecognized "[1]" with "0"
   return line.replace(/\[1\]/g, '0').trim();
 }
 
 interface CommodityData {
   required: number;
   delivered: number;
+  lastUpdated: number;
   isNew: boolean;
 }
 
@@ -94,31 +94,44 @@ interface ParsedItem {
   required: number;
   delivered: number;
   remaining: number;
+  progress: number;
+  weight: number;
   isNew: boolean;
+}
+
+// A discrete delivery event from the ED logs.
+interface DeliveryEvent {
+  commodity: string;
+  count: number;
+  timestamp: number;
+}
+
+// Aggregated delivery data per commodity.
+interface AggregatedDelivery {
+  count: number;
+  lastUpdated: number;
 }
 
 // EDApp now persists ALL aspects of parsedData.
 function EDApp() {
   const [lines, setLines] = useState<string[]>([]);
-  // deliveries come from ED log files via IPC
-  const [deliveries, setDeliveries] = useState<Record<string, number>>({});
-  // persistedData stores the full record for each commodity
-  // Format: { [commodity]: { required, delivered, isNew } }
+  // deliveries now holds aggregated delivery data with timestamps.
+  const [deliveries, setDeliveries] = useState<Record<string, AggregatedDelivery>>({});
+  // persistedData stores the full record for each commodity.
+  // Format: { [commodity]: { required, delivered, lastUpdated, isNew } }
   const [persistedData, setPersistedData] = useState<Record<string, CommodityData>>({});
-  // parsedData is computed from persistedData for display
+  // parsedData is computed from persistedData for display.
   const [parsedData, setParsedData] = useState<ParsedItem[]>([]);
   const [filter, setFilter] = useState<'all' | 'incomplete' | 'complete'>('incomplete');
 
-  // For progress bars
+  // For progress bars.
   const [ocrProgress, setOcrProgress] = useState(1);
   const [deliveryProgress, setDeliveryProgress] = useState(0);
 
   const ipc = window.electron.ipcRenderer;
 
   const handleDrop = async (e: DragEvent) => {
-    if (e.preventDefault) {
-      e.preventDefault();
-    }
+    if (e.preventDefault) e.preventDefault();
     const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
     console.log('[renderer] Dropped files:', files.map(f => f.name));
     if (!files.length) {
@@ -168,11 +181,9 @@ function EDApp() {
       }
     }
     console.log('[handleDrop] All OCR lines:', allOcrLines);
-    setOcrProgress(1); // done
-    setTimeout(() => setOcrProgress(1), 500); // reset after short delay
-    if (allOcrLines.length > 0) {
-      setLines(allOcrLines);
-    }
+    setOcrProgress(1);
+    setTimeout(() => setOcrProgress(1), 500);
+    if (allOcrLines.length > 0) setLines(allOcrLines);
   };
 
   const handleDragOver = (e: DragEvent) => e.preventDefault();
@@ -197,35 +208,60 @@ function EDApp() {
     localStorage.setItem('parsedData', JSON.stringify(persistedData));
   }, [persistedData]);
 
-  // Auto-reload journal logs (ED deliveries) via IPC.
+  // Process discrete delivery events into aggregated data.
+  const processLogEvents = (events: DeliveryEvent[]): Record<string, AggregatedDelivery> => {
+    const aggregated: Record<string, AggregatedDelivery> = {};
+    events.forEach(event => {
+      if (!aggregated[event.commodity]) {
+        aggregated[event.commodity] = { count: 0, lastUpdated: 0 };
+      }
+      aggregated[event.commodity].count += event.count;
+      aggregated[event.commodity].lastUpdated = Math.max(aggregated[event.commodity].lastUpdated, event.timestamp);
+    });
+    return aggregated;
+  };
+
+  // Auto-reload ED journal logs (ED deliveries) via IPC.
   useEffect(() => {
     const loadAndProcess = async () => {
-      const logData = await ipc.loadLogs();
-      setDeliveries(logData);
-      // Calculate delivery progress using parsedData.
-      const totalRequired = parsedData.reduce((sum, item) => sum + item.required, 0);
-      const totalDelivered = parsedData.reduce((sum, item) => sum + item.delivered, 0);
-      const progress = totalRequired > 0 ? totalDelivered / totalRequired : 0;
-      setDeliveryProgress(progress);
+      const events: DeliveryEvent[] = await ipc.loadLogs();
+      const aggregated = processLogEvents(events);
+      setDeliveries(aggregated);
     };
+
+    // Trigger once after everything is ready
     loadAndProcess();
+
+    // Set up periodic updates
+    const intervalId = setInterval(() => {
+      loadAndProcess();
+    }, 5000); // Adjust interval as needed (e.g., 60 seconds)
+
+    // Listen for journal updates
     ipc.onJournalUpdate(() => {
       loadAndProcess();
     });
-  }, [ipc, parsedData]);
 
-  // Merge new ED log deliveries into persistedData.
-  // If a commodity’s delivered count increases, mark it as new.
+    // Cleanup on unmount
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [ipc]);
+  
+
+  // Merge new ED log deliveries (with timestamps) into persistedData.
   useEffect(() => {
     setPersistedData(prev => {
       const updated = { ...prev };
       Object.keys(deliveries).forEach(commodity => {
-        const newDelivered = deliveries[commodity];
-        const oldDelivered = updated[commodity]?.delivered || 0;
-        updated[commodity] = {
-          required: updated[commodity]?.required || 0,
-          delivered: newDelivered,
-          isNew: newDelivered > oldDelivered,
+        const correctedName = fuzzyCorrect(commodity.toUpperCase());
+        const newData = deliveries[commodity]; // { count, lastUpdated }
+        const oldData = updated[correctedName] || { delivered: 0, lastUpdated: 0, required: 0, isNew: false };
+        updated[correctedName] = {
+          required: oldData.required,
+          delivered: newData.count,
+          lastUpdated: newData.lastUpdated,
+          isNew: newData.lastUpdated > oldData.lastUpdated, // mark as new if the timestamp is later
         };
       });
       // For commodities not present in the latest ED logs, clear the new flag.
@@ -254,12 +290,12 @@ function EDApp() {
             if (updated[correctedName]) {
               updated[correctedName].required = Math.max(updated[correctedName].required, requiredFromOCR);
             } else {
-              updated[correctedName] = { required: requiredFromOCR, delivered: 0, isNew: false };
+              updated[correctedName] = { required: requiredFromOCR, delivered: 0, lastUpdated: 0, isNew: false };
             }
           } else {
             const correctedName = fuzzyCorrect(line.toUpperCase());
             if (!updated[correctedName]) {
-              updated[correctedName] = { required: 0, delivered: 0, isNew: false };
+              updated[correctedName] = { required: 0, delivered: 0, lastUpdated: 0, isNew: false };
             }
           }
         });
@@ -272,15 +308,35 @@ function EDApp() {
   useEffect(() => {
     const newParsedData = Object.keys(persistedData).map(commodity => {
       const { required, delivered, isNew } = persistedData[commodity];
+      // Compute per-commodity progress: if required is > 0, use delivered/required; if not, consider it complete.
+      const progress = required > 0 ? delivered / required : 1;
+      // Use required as the weight, but default to 1 if required is 0.
+      const weight = required > 0 ? required : 1;
+      // Calculate remaining as the difference between required and delivered.
       const remaining = Math.max(required - delivered, 0);
-      return { commodity, required, delivered, remaining, isNew };
+      return { commodity, required, delivered, remaining, progress, weight, isNew };
     });
     setParsedData(newParsedData);
-    const totalRequired = newParsedData.reduce((sum, item) => sum + item.required, 0);
-    const totalDelivered = newParsedData.reduce((sum, item) => sum + item.delivered, 0);
-    const progress = totalRequired > 0 ? totalDelivered / totalRequired : 0;
-    setDeliveryProgress(progress);
+  
+    // Weighted overall progress across all commodities.
+    const totalWeight = newParsedData.reduce((sum, item) => sum + item.weight, 0);
+    const weightedProgressSum = newParsedData.reduce((sum, item) => sum + item.progress * item.weight, 0);
+    const weightedOverallProgress = totalWeight > 0 ? weightedProgressSum / totalWeight : 0;
+  
+    // Commodity completion percentage (each commodity counts equally).
+    const totalCommodities = newParsedData.length;
+    const completedCommodities = newParsedData.filter(item => item.progress === 1).length;
+    const completionProgress = totalCommodities > 0 ? completedCommodities / totalCommodities : 0;
+  
+    // Combine the two progress values. Here, we average them, but you can adjust the weighting if desired.
+    const combinedProgress = (weightedOverallProgress + completionProgress) / 2;
+  
+    setDeliveryProgress(combinedProgress);
+    console.log(`Weighted Overall Progress: ${(weightedOverallProgress * 100).toFixed(1)}%`);
+    console.log(`Commodity Completion Progress: ${(completionProgress * 100).toFixed(1)}%`);
+    console.log(`Combined Delivery Progress: ${(combinedProgress * 100).toFixed(1)}%`);
   }, [persistedData]);
+  
 
   // CSV export.
   const exportCSV = async () => {

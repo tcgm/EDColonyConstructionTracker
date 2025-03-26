@@ -23,13 +23,15 @@ const EDDropzone = ({ onFilesAdded }) => {
                 width: '100%',
                 backgroundColor: isDragActive ? '#333' : '#222',
                 color: '#fff',
+                height: "32px",
+                lineHeight: '0px',
             }}
         >
             <input {...getInputProps()} />
             {isDragActive ? (
-                <p>Drop the files here...</p>
+                <p>Drop the screenshots here...</p>
             ) : (
-                <p>Drag & drop some files here{/*, or click to select files */}</p>
+                <p>Drag & drop screenshots here{/*, or click to select files */}</p>
             )}
         </div>
     );

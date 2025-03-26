@@ -32,14 +32,16 @@ export default function EDTable({ rows }) {
 
   return (
     <div style={{ flex: 1, overflow: 'auto', width: '100%' }}>
-      <table className="ed-table" cellSpacing="1" cellPadding="1" style={{ width: '100%', background: '#000', color: '#FFA500', borderCollapse: 'collapse' }}>
+      <table
+        className="ed-table"
+        cellSpacing="1"
+        cellPadding="1"
+        style={{ width: '100%', background: '#000', color: '#FFA500', borderCollapse: 'collapse' }}
+      >
         <thead style={{ position: 'sticky', top: 0 }}>
           <tr>
             {columns.map(col => (
-              <th
-                key={col.key}
-                onClick={() => handleSort(col.key)}
-              >
+              <th key={col.key} onClick={() => handleSort(col.key)}>
                 {col.label} {sortConfig.key === col.key ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}
               </th>
             ))}
@@ -47,12 +49,28 @@ export default function EDTable({ rows }) {
         </thead>
         <tbody>
           {sortedRows.map((row, i) => (
-            <tr key={i}>
-              <td>{row.commodity}</td>
-              <td>{row.delivered}</td>
-              <td>{row.required}</td>
-              <td>{row.remaining}</td>
-            </tr>
+            <React.Fragment key={i}>
+              <tr>
+                <td>{row.commodity}</td>
+                <td>{row.delivered}</td>
+                <td>{row.required}</td>
+                <td>{row.remaining}</td>
+              </tr>
+              <tr key={`${i}_progress`}>
+                <td colSpan={4}>
+                  <div style={{ background: '#333', borderRadius: '4px', overflow: 'hidden', height: '4px' }}>
+                    <div
+                      style={{
+                        width: `${row.progress * 100}%`,
+                        background: '#FFA500',
+                        height: '100%',
+                        transition: 'width 0.3s ease'
+                      }}
+                    />
+                  </div>
+                </td>
+              </tr>
+            </React.Fragment>
           ))}
         </tbody>
       </table>

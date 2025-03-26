@@ -267,12 +267,19 @@ app
   function watchEliteDangerousLogs() {
     const journalDir = path.join(os.homedir(), 'Saved Games', 'Frontier Developments', 'Elite Dangerous');
     if (!fs.existsSync(journalDir)) return;
-  
+
+    let debounceTimeout: NodeJS.Timeout | null = null;
+
     fs.watch(journalDir, (eventType: any, filename: string) => {
       if (filename?.startsWith('Journal') && filename.endsWith('.log')) {
-        if (mainWindow) {
-          mainWindow.webContents.send('journal-updated');
+        if (debounceTimeout) {
+          clearTimeout(debounceTimeout);
         }
+        debounceTimeout = setTimeout(() => {
+          if (mainWindow) {
+            mainWindow.webContents.send('journal-updated');
+          }
+        }, 5000); // Adjust debounce delay as needed
       }
     });
   }
@@ -344,73 +351,100 @@ app
     return deliveries;
   }); */
 
-  // In‑memory cache for log data.
-let logCache: {
-  deliveries: { [key: string]: number };
-  fileTimestamps: { [filename: string]: number };
-} | null = null;
-
-ipcMain.handle('load-logs', async () => {
-  const journalDir = path.join(
-    os.homedir(),
-    'Saved Games',
-    'Frontier Developments',
-    'Elite Dangerous'
-  );
-  let deliveries: { [key: string]: number } = {};
-  if (!fs.existsSync(journalDir)) return deliveries;
-
-  // Get list of log files
-  const files = fs
-    .readdirSync(journalDir)
-    .filter((f: string) => f.startsWith('Journal') && f.endsWith('.log'));
-
-  let needReload = false;
-  const currentTimestamps: { [filename: string]: number } = {};
-
-  // Check each file's modification time.
-  for (const file of files) {
-    const filePath = path.join(journalDir, file);
-    const stats = fs.statSync(filePath);
-    currentTimestamps[file] = stats.mtimeMs;
-    // If there's no cache or the file timestamp differs, we need to reload.
-    if (!logCache || !logCache.fileTimestamps[file] || logCache.fileTimestamps[file] !== stats.mtimeMs) {
-      needReload = true;
-    }
+  interface DeliveryEvent {
+    commodity: string;
+    count: number;
+    timestamp: number;
   }
-
-  // If nothing changed, return the cached deliveries.
-  if (!needReload && logCache) {
-    return logCache.deliveries;
-  }
-
-  // Otherwise, re-read and process the log files.
-  for (const file of files) {
-    const filePath = path.join(journalDir, file);
-    const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
-    for (const line of lines) {
-      if (line.includes('"event":"MarketSell"')) {
-        try {
-          const entry = JSON.parse(line);
-          const name = entry.Type
-            .replace(/_/g, ' ')
-            .replace(/\b\w/g, (l: string) => l.toUpperCase());
-          deliveries[name] = (deliveries[name] || 0) + entry.Count;
-        } catch {
-          continue;
-        }
+  
+  // Use the promise-based FS API.
+  const fsp = fs.promises;
+  
+  // In‑memory cache for log events.
+  let logCache: {
+    events: DeliveryEvent[];
+    fileTimestamps: { [filename: string]: number };
+  } | null = null;
+  
+  ipcMain.handle('load-logs', async () => {
+    const journalDir = path.join(
+      os.homedir(),
+      'Saved Games',
+      'Frontier Developments',
+      'Elite Dangerous'
+    );
+    let events: DeliveryEvent[] = [];
+    if (!fs.existsSync(journalDir)) return events;
+  
+    // Get list of log files asynchronously.
+    let files = (await fsp.readdir(journalDir))
+      .filter((f: string) => f.startsWith('Journal') && f.endsWith('.log'));
+    const fiveWeeksAgo = Date.now() - 5 * 7 * 24 * 60 * 60 * 1000; // 5 weeks in milliseconds
+    const recentFiles = [];
+    for (const file of files) {
+      const filePath = path.join(journalDir, file);
+      const stats = await fsp.stat(filePath);
+      if (stats.mtimeMs >= fiveWeeksAgo) {
+      recentFiles.push(file);
       }
     }
-  }
-
-  // Update the cache with the new deliveries and file timestamps.
-  logCache = {
-    deliveries,
-    fileTimestamps: currentTimestamps,
-  };
-
-  return deliveries;
-});
+    files = recentFiles;
+    let needReload = false;
+    const currentTimestamps: { [filename: string]: number } = {};
+  
+    // Check each file's modification time asynchronously.
+    for (const file of recentFiles) {
+      const filePath = path.join(journalDir, file);
+      const stats = await fsp.stat(filePath);
+      currentTimestamps[file] = stats.mtimeMs;
+      if (
+        !logCache ||
+        !logCache.fileTimestamps[file] ||
+        logCache.fileTimestamps[file] !== stats.mtimeMs
+      ) {
+        needReload = true;
+      }
+    }
+  
+    // If nothing changed, return cached events.
+    if (!needReload && logCache) {
+      return logCache.events;
+    }
+  
+    // Otherwise, re-read and process the log files one at a time.
+    for (const file of recentFiles) {
+      const filePath = path.join(journalDir, file);
+      const data = await fsp.readFile(filePath, 'utf8');
+      const lines = data.split('\n');
+      for (const line of lines) {
+        if (line.includes('"event":"MarketSell"') && line.includes('"System Colonisation"')) {
+          try {
+            console.log(`Processing MarketSell line: ${line}`);
+            const entry = JSON.parse(line);
+            // Assume each journal entry has a "timestamp" property.
+            const timestamp = new Date(entry.timestamp).getTime();
+            // Format the commodity name.
+            const commodity = entry.Type
+              .replace(/_/g, ' ')
+              .replace(/\b\w/g, (l: string) => l.toUpperCase());
+            events.push({ commodity, count: entry.Count, timestamp });
+          } catch {
+            continue;
+          }
+        }
+      }
+      // Yield control to avoid hogging the event loop.
+      await new Promise(resolve => setImmediate(resolve));
+    }
+  
+    // Update the cache.
+    logCache = {
+      events,
+      fileTimestamps: currentTimestamps,
+    };
+  
+    return events;
+  });
   
   ipcMain.handle('export-csv', async (e, rows) => {
     const { canceled, filePath } = await dialog.showSaveDialog({ 
