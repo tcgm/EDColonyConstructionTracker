@@ -1,19 +1,11 @@
 import React from 'react';
+import './EDPanel.css';
 
 export default function EDPanel({ children, style = {}, ...props }) {
   return (
-    <div
+    <div className='ed-panel'
       {...props}
       style={{
-        background: '#000',
-        color: '#FFA500',
-        padding: '20px',
-        height: '100vh',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        boxSizing: 'border-box',
         ...style,
       }}
       onDragOver={(e) => e.preventDefault()}

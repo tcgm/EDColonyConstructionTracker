@@ -1,0 +1,15 @@
+.ed-table th {
+    cursor: pointer;
+    user-select: none;
+    border: 1px solid #FFA500;
+}
+
+.ed-table td {
+    border: 1px solid #FFA500;
+}
+
+.ed-table thead {
+    border: 1px solid #FFA500;
+    background: #000;
+    color: #FFA500;
+}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import './EDTable.css';
 
 export default function EDTable({ rows }) {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
@@ -31,13 +32,12 @@ export default function EDTable({ rows }) {
 
   return (
     <div style={{ flex: 1, overflow: 'auto', width: '100%' }}>
-      <table border="1" cellPadding="5" style={{ width: '100%', background: '#000', color: '#FFA500' }}>
-        <thead>
+      <table className="ed-table" cellSpacing="1" cellPadding="1" style={{ width: '100%', background: '#000', color: '#FFA500', borderCollapse: 'collapse' }}>
+        <thead style={{ position: 'sticky', top: 0 }}>
           <tr>
             {columns.map(col => (
               <th
                 key={col.key}
-                style={{ cursor: 'pointer', userSelect: 'none' }}
                 onClick={() => handleSort(col.key)}
               >
                 {col.label} {sortConfig.key === col.key ? (sortConfig.direction === 'asc' ? '↑' : '↓') : ''}

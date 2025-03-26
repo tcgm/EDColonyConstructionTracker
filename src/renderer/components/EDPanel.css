@@ -1,0 +1,13 @@
+.ed-panel {
+    background: #000;
+    color: #FFA500;
+    padding: 20px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+}

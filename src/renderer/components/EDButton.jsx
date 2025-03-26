@@ -6,8 +6,8 @@ export default function EDButton({ children, ...props }) {
       {...props}
       style={{
         background: '#FFA500',
-        color: '#000',
-        padding: '10px 20px',
+        color: '#fff',
+        padding: '2px 10px',
         border: 'none',
         fontWeight: 'bold',
         cursor: 'pointer',

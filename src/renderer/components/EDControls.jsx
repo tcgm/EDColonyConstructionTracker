@@ -3,7 +3,7 @@ import EDRadioGroup from './EDRadioGroup';
 
 export default function EDControls({ filter, setFilter, exportCSV }) {
   return (
-    <div style={{ marginBottom: '10px' }}>
+    <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px', verticalAlign: 'middle' }}>
       <EDRadioGroup
         label="Filter:"
         options={['all', 'incomplete', 'complete']}

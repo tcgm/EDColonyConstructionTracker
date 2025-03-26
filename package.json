@@ -111,6 +111,7 @@
     "jimp": "^1.6.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-dropzone": "^14.3.8",
     "react-router-dom": "^7.3.0",
     "tesseract.js": "^6.0.0"
   },
@@ -221,7 +222,13 @@
     },
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
       ]
     },
     "linux": {

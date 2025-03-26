@@ -6,6 +6,7 @@ const Fuse = require('fuse.js');
 // import { Jimp } from "jimp";
 // import { Buffer } from 'buffer';
 import { Image } from 'image-js';
+import './EDApp.css';
 
 import EDPanel from './components/EDPanel';
 import EDHeader from './components/EDHeader';
@@ -15,6 +16,7 @@ import EDFooter from './components/EDFooter';
 import './App.css';
 
 import { KNOWN_COMMODITIES } from './edCommods';
+import EDDropzone from './components/EDDropzone';
 
 // 1️⃣ Create fuzzy matcher for known commodities
 const fuse = new Fuse(KNOWN_COMMODITIES, {
@@ -78,6 +80,12 @@ async function preprocessImage(file: File): Promise<Blob> {
   return blob;
 }
 
+// Normalize OCR lines to fix common misreads.
+function normalizeOcrLine(line: string): string {
+  // Replace misrecognized "[1]" with "0"
+  return line.replace(/\[1\]/g, '0').trim();
+}
+
 // 3️⃣ Handle drop => Preprocess => OCR => fuzzy match
 function EDApp() {
   const [lines, setLines] = useState<string[]>([]);
@@ -85,91 +93,94 @@ function EDApp() {
   const [parsedData, setParsedData] = useState<
     { commodity: string; required: number; delivered: number; remaining: number }[]
   >([]);
-  const [filter, setFilter] = useState<'all' | 'incomplete' | 'complete'>('all');
+  const [filter, setFilter] = useState<'all' | 'incomplete' | 'complete'>('incomplete');
 
   // For progress bar
-  const [ocrProgress, setOcrProgress] = useState(0);
+  const [ocrProgress, setOcrProgress] = useState(1);
+  const [deliveryProgress, setDeliveryProgress] = useState(0);
 
   const ipc = window.electron.ipcRenderer;
 
-  useEffect(() => {
-    const handleDrop = async (e: DragEvent) => {
+  const handleDrop = async (e: DragEvent) => {
+    if (e.preventDefault) {
       e.preventDefault();
-      const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
-      console.log('[renderer] Dropped files:', files.map(f => f.name));
+    }
+    const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
+    console.log('[renderer] Dropped files:', files.map(f => f.name));
 
-      if (!files.length) {
-        console.log('[handleDrop] No files dropped');
-        return;
-      }
+    if (!files.length) {
+      console.log('[handleDrop] No files dropped');
+      return;
+    }
 
-      console.log('[handleDrop] Total files dropped:', files.length);
+    console.log('[handleDrop] Total files dropped:', files.length);
 
-      const totalFiles = files.length;
-      let allOcrLines: string[] = [];
+    const totalFiles = files.length;
+    let allOcrLines: string[] = [];
 
-      for (let i = 0; i < totalFiles; i++) {
-        const file = files[i];
-        console.log(`[handleDrop] Processing file ${i + 1} of ${totalFiles}:`, file.name);
+    for (let i = 0; i < totalFiles; i++) {
+      const file = files[i];
+      console.log(`[handleDrop] Processing file ${i + 1} of ${totalFiles}:`, file.name);
 
-        try {
-          // Preprocess with image‑js
-          console.log(`[handleDrop] Preprocessing file: ${file.name}`);
-          const preprocessedBlob = await preprocessImage(file);
-          console.log(`[handleDrop] Preprocessing complete for file: ${file.name}`);
+      try {
+        // Preprocess with image‑js
+        console.log(`[handleDrop] Preprocessing file: ${file.name}`);
+        const preprocessedBlob = await preprocessImage(file);
+        console.log(`[handleDrop] Preprocessing complete for file: ${file.name}`);
 
-          // Create object URL
-          const objectUrl = URL.createObjectURL(preprocessedBlob);
-          console.log(`[handleDrop] Created object URL for file: ${file.name}`);
+        // Create object URL
+        const objectUrl = URL.createObjectURL(preprocessedBlob);
+        console.log(`[handleDrop] Created object URL for file: ${file.name}`);
 
-          // OCR with Tesseract
-          console.log(`[handleDrop] Starting OCR for file: ${file.name}`);
-          const result = await Tesseract.recognize(objectUrl, 'eng', {
-        logger: (m: any) => {
-          if (m.status === 'recognizing text') {
-            const portion = 1 / totalFiles;
-            const overall = i * portion + m.progress * portion;
-            setOcrProgress(overall);
-            console.log(`[handleDrop] OCR progress for file ${file.name}:`, (m.progress * 100).toFixed(1) + '%');
-          }
-        },
-        // @ts-ignore
-        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ',
-        // @ts-ignore
-        psm: 6,
-          } as any);
-
-          console.log(`[handleDrop] OCR complete for file: ${file.name}`);
-          const text = result.data.text;
-          console.log(`[handleDrop] OCR result for file ${file.name}:`, text);
-
-          const fileLines = text
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean);
-          console.log(`[handleDrop] Extracted lines from file ${file.name}:`, fileLines);
-
-          allOcrLines.push(...fileLines);
-
-          URL.revokeObjectURL(objectUrl);
-          console.log(`[handleDrop] Revoked object URL for file: ${file.name}`);
-        } catch (err) {
-          console.error(`[handleDrop] OCR error for file ${file.name}:`, err);
+        // OCR with Tesseract
+        console.log(`[handleDrop] Starting OCR for file: ${file.name}`);
+        const result = await Tesseract.recognize(objectUrl, 'eng', {
+      logger: (m: any) => {
+        if (m.status === 'recognizing text') {
+          const portion = 1 / totalFiles;
+          const overall = i * portion + m.progress * portion;
+          setOcrProgress(overall);
+          console.log(`[handleDrop] OCR progress for file ${file.name}:`, (m.progress * 100).toFixed(1) + '%');
         }
+      },
+      // @ts-ignore
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ',
+      // @ts-ignore
+      psm: 6,
+        } as any);
+
+        console.log(`[handleDrop] OCR complete for file: ${file.name}`);
+        const text = result.data.text;
+        console.log(`[handleDrop] OCR result for file ${file.name}:`, text);
+
+        const fileLines = text
+        .split('\n')
+        .map(line => normalizeOcrLine(line.trim()))
+        .filter(Boolean);
+      console.log(`[handleDrop] Extracted lines from file ${file.name}:`, fileLines);
+
+        allOcrLines.push(...fileLines);
+
+        URL.revokeObjectURL(objectUrl);
+        console.log(`[handleDrop] Revoked object URL for file: ${file.name}`);
+      } catch (err) {
+        console.error(`[handleDrop] OCR error for file ${file.name}:`, err);
       }
+    }
 
-      console.log('[handleDrop] All OCR lines:', allOcrLines);
+    console.log('[handleDrop] All OCR lines:', allOcrLines);
 
-      setOcrProgress(1); // done
-      setTimeout(() => setOcrProgress(0), 500); // reset after short delay
+    setOcrProgress(1); // done
+    setTimeout(() => setOcrProgress(1), 500); // reset after short delay
 
-      if (allOcrLines.length > 0) {
-        setLines(allOcrLines);
-      }
-    };
+    if (allOcrLines.length > 0) {
+      setLines(allOcrLines);
+    }
+  };
 
-    const handleDragOver = (e: DragEvent) => e.preventDefault();
+  const handleDragOver = (e: DragEvent) => e.preventDefault();
 
+  useEffect(() => {
     window.addEventListener('dragover', handleDragOver);
     window.addEventListener('drop', handleDrop);
 
@@ -184,6 +195,12 @@ function EDApp() {
     const loadAndProcess = async () => {
       const logData = await ipc.loadLogs();
       setDeliveries(logData);
+
+      // Calculate delivery progress using parsedData
+      const totalRequired = parsedData.reduce((sum, item) => sum + item.required, 0);
+      const totalDelivered = parsedData.reduce((sum, item) => sum + item.delivered, 0);
+      const progress = totalRequired > 0 ? totalDelivered / totalRequired : 0;
+      setDeliveryProgress(progress);
     };
     loadAndProcess();
     ipc.onJournalUpdate(() => {
@@ -193,20 +210,25 @@ function EDApp() {
 
   // 5️⃣ Merge OCR lines with delivery data
   useEffect(() => {
-    const commodities = lines.filter(line => !/^[\d,]+$/.test(line));
-    const numbers = lines
-      .filter(line => /^[\d,]+$/.test(line))
-      .map(n => parseInt(n.replace(/,/g, '')));
-
-    const combined = commodities.map((rawName, i) => {
-      const correctedName = fuzzyCorrect(rawName.toUpperCase());
-      const req = numbers[i] ?? 0;
-      return {
-        commodity: correctedName,
-        required: req,
-        delivered: deliveries[correctedName] || 0,
-        remaining: Math.max(0, req - (deliveries[correctedName] || 0)),
-      };
+    const combined = lines.map(line => {
+      // Use regex to capture the commodity name and required number.
+      // This regex captures everything before the first occurrence of digits
+      // and then captures the digits (allowing commas), ignoring any trailing non-digits.
+      const match = line.match(/^(.*?)(\d[\d,]*)\D*$/);
+      if (match) {
+        const namePart = match[1].trim();
+        const numberPart = match[2].replace(/,/g, '');
+        const required = parseInt(numberPart, 10) || 0;
+        const correctedName = fuzzyCorrect(namePart.toUpperCase());
+        const delivered = deliveries[correctedName] || 0;
+        const remaining = Math.max(0, required - delivered);
+        return { commodity: correctedName, required, delivered, remaining };
+      } else {
+        // If no number is found, treat the entire line as the commodity name.
+        const correctedName = fuzzyCorrect(line.toUpperCase());
+        const delivered = deliveries[correctedName] || 0;
+        return { commodity: correctedName, required: 0, delivered, remaining: 0 };
+      }
     });
     setParsedData(combined);
   }, [lines, deliveries]);
@@ -235,10 +257,15 @@ function EDApp() {
     <EDPanel>
       <EDHeader />
       {/* Progress Bar */}
+      <div style={{ textAlign: 'center', color: '#FFA500', marginBottom: '10px' }}>
+        {ocrProgress < 1
+          ? `OCR Progress: ${(ocrProgress * 100).toFixed(1)}%`
+          : `Delivery Progress: ${(deliveryProgress * 100).toFixed(1)}%`}
+      </div>
       <div style={{ width: '50%', background: '#333', height: '10px', margin: '10px auto' }}>
         <div
           style={{
-            width: `${(ocrProgress * 100).toFixed(1)}%`,
+            width: `${(ocrProgress < 1 ? ocrProgress : deliveryProgress) * 100}%`,
             background: '#FFA500',
             height: '100%',
             transition: 'width 0.2s'
@@ -248,6 +275,7 @@ function EDApp() {
 
       <EDControls filter={filter} setFilter={setFilter} exportCSV={exportCSV} />
       <EDTable rows={filteredRows()} />
+      <EDDropzone onFilesAdded={handleDrop}/>
       <EDFooter />
     </EDPanel>
   );
