@@ -14,6 +14,7 @@ import './App.css';
 
 import { KNOWN_COMMODITIES } from './edCommods';
 import EDDropzone from './components/EDDropzone';
+import { Button, Modal } from 'react-bootstrap';
 
 // Create fuzzy matcher for known commodities
 const fuse = new Fuse(KNOWN_COMMODITIES, {
@@ -243,14 +244,16 @@ function EDApp() {
     const delivery = args[0] as DeliveryEvent;
     setDeliveries(prev => {
       const updated = { ...prev };
-      const corrected = fuzzyCorrect(delivery.commodity.toUpperCase());
+      if(delivery && delivery.commodity) {
+        const corrected = fuzzyCorrect(delivery.commodity.toUpperCase());
 
-      if (!updated[corrected]) {
-        updated[corrected] = { count: 0, lastUpdated: 0 };
+        if (!updated[corrected]) {
+          updated[corrected] = { count: 0, lastUpdated: 0 };
+        }
+
+        updated[corrected].count += delivery.count;
+        updated[corrected].lastUpdated = Math.max(updated[corrected].lastUpdated, delivery.timestamp);
       }
-
-      updated[corrected].count += delivery.count;
-      updated[corrected].lastUpdated = Math.max(updated[corrected].lastUpdated, delivery.timestamp);
       return updated;
     });
   });
@@ -311,7 +314,9 @@ function EDApp() {
             const requiredFromOCR = parseInt(numberPart, 10) || 0;
             const correctedName = fuzzyCorrect(namePart.toUpperCase());
             if (updated[correctedName]) {
-              updated[correctedName].required = Math.max(updated[correctedName].required, requiredFromOCR);
+                updated[correctedName].required = requiredFromOCR === 0 
+                ? 0 
+                : Math.max(updated[correctedName].required, requiredFromOCR);
             } else {
               updated[correctedName] = { required: requiredFromOCR, delivered: 0, lastUpdated: 0, isNew: false };
             }
@@ -389,19 +394,26 @@ function EDApp() {
   };
 
   // Reset handler to clear persisted parsed data.
+  const [showResetParsedModal, setShowResetParsedModal] = useState(false);
+  const [showResetDeliveriesModal, setShowResetDeliveriesModal] = useState(false);
+
   const handleResetParsed = () => {
-    if (window.confirm("Are you sure you want to reset the parsed data?")) {
-      localStorage.removeItem('parsedData');
-      setPersistedData({});
-      alert("Parsed data has been reset.");
-    }
+    setShowResetParsedModal(true);
+  };
+
+  const confirmResetParsed = () => {
+    localStorage.removeItem('parsedData');
+    setPersistedData({});
+    setShowResetParsedModal(false);
   };
 
   const handleResetDeliveries = () => {
-    if (window.confirm("Are you sure you want to reset the delivery data? This cannot be recovered!")) {
-      ipc.resetDeliveryData();
-      alert("Delivery data has been reset.");
-    }
+    setShowResetDeliveriesModal(true);
+  };
+
+  const confirmResetDeliveries = () => {
+    ipc.resetDeliveryData();
+    setShowResetDeliveriesModal(false);
   };
 
   return (
@@ -427,6 +439,34 @@ function EDApp() {
       <EDTable rows={filteredRows()} />
       <EDDropzone onFilesAdded={handleDrop} />
       <EDFooter />
+      
+      {/* Reset Parsed Data Modal */}
+      <Modal show={showResetParsedModal} onHide={() => setShowResetParsedModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Reset</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to reset all parsed data? This action cannot be undone.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="danger" onClick={confirmResetParsed}>Yes, Reset</Button>
+          <Button variant="secondary" onClick={() => setShowResetParsedModal(false)}>Cancel</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Reset Deliveries Modal */}
+      <Modal show={showResetDeliveriesModal} onHide={() => setShowResetDeliveriesModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Reset</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to reset all delivery data? This action cannot be undone. Parsed Data can be restored from screenshots, but delivery data is compiled from active ED play and cannot be restored.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="danger" onClick={confirmResetDeliveries}>Yes, Reset</Button>
+          <Button variant="secondary" onClick={() => setShowResetDeliveriesModal(false)}>Cancel</Button>
+        </Modal.Footer>
+      </Modal>
     </EDPanel>
   );
 }

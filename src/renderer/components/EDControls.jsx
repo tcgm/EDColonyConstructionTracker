@@ -10,7 +10,7 @@ export default function EDControls({
   return (
     <div style={{ marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px', verticalAlign: 'middle' }}>
       <EDButton onClick={resetParsed}>Reset Parsed Data</EDButton>
-      <EDButton onClick={resetDelivery}>Reset Delivery Data</EDButton>
+      <EDButton onClick={resetDelivery}>Reset Deliveries</EDButton>
       <EDRadioGroup
         label="Filter:"
         options={['all', 'incomplete', 'complete']}

@@ -24,7 +24,7 @@ const EDDropzone = ({ onFilesAdded }) => {
                 backgroundColor: isDragActive ? '#333' : '#222',
                 color: '#fff',
                 height: "32px",
-                lineHeight: '0px',
+                lineHeight: '24px',
             }}
         >
             <input {...getInputProps()} />
