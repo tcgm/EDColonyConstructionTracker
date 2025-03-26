@@ -11,6 +11,8 @@ import EDControls from './components/EDControls';
 import EDTable from './components/EDTable';
 import EDFooter from './components/EDFooter';
 import './App.css';
+import './assets/images/sampleShots/shot1.png';
+import './assets/images/sampleShots/shot2.png';
 
 import { KNOWN_COMMODITIES } from './edCommods';
 import EDDropzone from './components/EDDropzone';
@@ -416,6 +418,9 @@ function EDApp() {
     setShowResetDeliveriesModal(false);
   };
 
+  // Reset handler to clear persisted parsed data.
+  const [showOCRInstructions, setOCRInstructions] = useState(false);
+
   return (
     <EDPanel>
       <EDHeader />
@@ -438,7 +443,7 @@ function EDApp() {
       <EDControls filter={filter} setFilter={setFilter} exportCSV={exportCSV} resetParsed={handleResetParsed} resetDelivery={handleResetDeliveries}/>
       <EDTable rows={filteredRows()} />
       <EDDropzone onFilesAdded={handleDrop} />
-      <EDFooter />
+      <EDFooter showOCRInstructions={() => setOCRInstructions(true)}/>
       
       {/* Reset Parsed Data Modal */}
       <Modal show={showResetParsedModal} onHide={() => setShowResetParsedModal(false)}>
@@ -465,6 +470,35 @@ function EDApp() {
         <Modal.Footer>
           <Button variant="danger" onClick={confirmResetDeliveries}>Yes, Reset</Button>
           <Button variant="secondary" onClick={() => setShowResetDeliveriesModal(false)}>Cancel</Button>
+        </Modal.Footer>
+      </Modal>
+      {/* OCR Guidance Modal */} 
+      <Modal show={showOCRInstructions} onHide={() => {}}>
+        <Modal.Header closeButton style={{ position: 'sticky', top: 0, backgroundColor: 'white', zIndex: 1050 }}>
+          <Modal.Title>OCR Guidance</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+        To successfully use the included Tesseract OCR (Optical Character Recognition) system to populate the commodities needed for your construction project, please ensure your screenshots include the required data clearly. You only should include the names of the commodities, and how much remain to transfer. Any additional information will confuse Tesseract and may cause program crashes or unexpected behavior!
+        Below are examples of ideal screenshots:
+          </p>
+            <div style={{ textAlign: 'center' }}>
+          <img 
+            src={require('./assets/images/sampleShots/shot1.png')} 
+            alt="Sample Screenshot 1" 
+            style={{ maxWidth: '100%', marginBottom: '10px' }} 
+          />
+          <img 
+            src={require('./assets/images/sampleShots/shot2.png')} 
+            alt="Sample Screenshot 2" 
+            style={{ maxWidth: '100%' }} 
+          />
+            </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="primary" onClick={() => {setOCRInstructions(false);}}>
+        Got it!
+          </Button>
         </Modal.Footer>
       </Modal>
     </EDPanel>
