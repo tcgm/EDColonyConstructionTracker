@@ -2,7 +2,14 @@
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
-export type Channels = 'ipc-example';
+export type Channels = 'ipc-example'
+| 'delivery-detected'
+| 'parse-images'
+| 'load-logs'
+| 'export-csv'
+| 'journal-updated'
+| 'files-dropped'
+| 'reset-delivery-data';
 
 const electronHandler = {
   ipcRenderer: {
@@ -30,6 +37,7 @@ const electronHandler = {
       const filePaths = Array.from(files).map(f => f.path).filter(p => !!p && p !== 'N/A');
       ipcRenderer.send('files-dropped', filePaths);
     },
+    resetDeliveryData: () => ipcRenderer.invoke('reset-delivery-data')
   },
 };
 

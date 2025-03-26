@@ -100,10 +100,13 @@ interface ParsedItem {
 }
 
 // A discrete delivery event from the ED logs.
-interface DeliveryEvent {
+
+export interface DeliveryEvent {
   commodity: string;
   count: number;
   timestamp: number;
+  inferred: boolean;
+  stationName?: string;
 }
 
 // Aggregated delivery data per commodity.
@@ -225,12 +228,32 @@ function EDApp() {
   useEffect(() => {
     const loadAndProcess = async () => {
       const events: DeliveryEvent[] = await ipc.loadLogs();
+      console.log('[loadAndProcess] Loaded ED log events:', events);
       const aggregated = processLogEvents(events);
       setDeliveries(aggregated);
     };
 
     // Trigger once after everything is ready
     loadAndProcess();
+
+    
+
+  // Live updates from DeliveryDetector
+  ipc.on('delivery-detected', (_event: any, ...args: unknown[]) => {
+    const delivery = args[0] as DeliveryEvent;
+    setDeliveries(prev => {
+      const updated = { ...prev };
+      const corrected = fuzzyCorrect(delivery.commodity.toUpperCase());
+
+      if (!updated[corrected]) {
+        updated[corrected] = { count: 0, lastUpdated: 0 };
+      }
+
+      updated[corrected].count += delivery.count;
+      updated[corrected].lastUpdated = Math.max(updated[corrected].lastUpdated, delivery.timestamp);
+      return updated;
+    });
+  });
 
     // Set up periodic updates
     const intervalId = setInterval(() => {
@@ -366,11 +389,18 @@ function EDApp() {
   };
 
   // Reset handler to clear persisted parsed data.
-  const handleReset = () => {
+  const handleResetParsed = () => {
     if (window.confirm("Are you sure you want to reset the parsed data?")) {
       localStorage.removeItem('parsedData');
       setPersistedData({});
       alert("Parsed data has been reset.");
+    }
+  };
+
+  const handleResetDeliveries = () => {
+    if (window.confirm("Are you sure you want to reset the delivery data? This cannot be recovered!")) {
+      ipc.resetDeliveryData();
+      alert("Delivery data has been reset.");
     }
   };
 
@@ -393,8 +423,7 @@ function EDApp() {
           }}
         />
       </div>
-      <EDControls filter={filter} setFilter={setFilter} exportCSV={exportCSV} />
-      <button onClick={handleReset}>Reset Parsed Data</button>
+      <EDControls filter={filter} setFilter={setFilter} exportCSV={exportCSV} resetParsed={handleResetParsed} resetDelivery={handleResetDeliveries}/>
       <EDTable rows={filteredRows()} />
       <EDDropzone onFilesAdded={handleDrop} />
       <EDFooter />
