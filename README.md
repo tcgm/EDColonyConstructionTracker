@@ -32,7 +32,7 @@ This project is a tool designed to help track and manage the construction of col
   ```
 2. Navigate to the project directory:
   ```bash
-  cd ed-colony-construction-tracker/
+  cd EDColonyConstructionTracker/
   ```
 3. Install dependencies:
   ```bash
