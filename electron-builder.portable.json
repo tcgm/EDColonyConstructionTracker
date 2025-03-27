@@ -1,0 +1,16 @@
+{
+    "extends": "./electron-builder.base.json",
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64", "ia32"]
+        }
+      ]
+    },
+    "directories": {
+      "output": "release/build/portable"
+    },
+    "artifactName": "${productName} Portable ${version}.${ext}"
+  }
+  

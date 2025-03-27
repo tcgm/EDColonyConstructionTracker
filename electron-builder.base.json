@@ -1,0 +1,26 @@
+{
+    "productName": "Elite Dangerous Colony Construction Tracker",
+    "appId": "org.tcgm.edcct",
+    "asar": true,
+    "asarUnpack": "**\\*.{node,dll}",
+    "files": [
+      "dist",
+      "node_modules",
+      "package.json"
+    ],
+    "icon": "assets/icon.ico",
+    "directories": {
+      "app": "release/app",
+      "buildResources": "assets",
+      "output": "release/build"
+    },
+    "extraResources": [
+      "./assets/**"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "tcgm",
+      "repo": "tcgm"
+    }
+  }
+  

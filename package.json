@@ -1,7 +1,7 @@
 {
   "name": "elite-dangerous-colony-construction-tracker",
   "description": "Elite Dangerous Colony Construction Tracker",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "keywords": [
     "electron",
     "boilerplate",
@@ -28,6 +28,11 @@
   },
   "main": "./.erb/dll/main.bundle.dev.js",
   "scripts": {
+    "build:nsis": "electron-builder --config electron-builder.nsis.json --publish never",
+    "build:oneclick": "electron-builder --config electron-builder.oneclick.json --publish never",
+    "build:portable": "electron-builder --config electron-builder.portable.json --publish never",
+    "build:all": "node build-all.js",
+    "packall": "npm run build:all",
     "build": "concurrently \"npm run build:main\" \"npm run build:renderer\"",
     "build:dll": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.renderer.dev.dll.ts",
     "build:main": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.main.prod.ts",
@@ -224,22 +229,6 @@
       "background": "assets/dmg-background.png"
     },
     "win": {
-      "target": [
-        {
-          "target": "portable",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
-        },
-        {
-          "target": "nsis",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
-        }
-      ],
       "icon": "assets/icon.ico"
     },
     "linux": {
