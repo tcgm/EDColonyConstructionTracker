@@ -157,27 +157,27 @@ export default class MenuBuilder {
         {
           label: 'Learn More',
           click() {
-            shell.openExternal('https://electronjs.org');
+            shell.openExternal('https://github.com/tcgm/EDColonyConstructionTracker');
           },
         },
         {
           label: 'Documentation',
           click() {
             shell.openExternal(
-              'https://github.com/electron/electron/tree/main/docs#readme',
+              'https://github.com/tcgm/EDColonyConstructionTracker/blob/main/README.md',
             );
           },
         },
         {
           label: 'Community Discussions',
           click() {
-            shell.openExternal('https://www.electronjs.org/community');
+            shell.openExternal('https://github.com/tcgm/EDColonyConstructionTracker/discussions');
           },
         },
         {
           label: 'Search Issues',
           click() {
-            shell.openExternal('https://github.com/electron/electron/issues');
+            shell.openExternal('https://github.com/tcgm/EDColonyConstructionTracker/issues');
           },
         },
       ],
@@ -258,27 +258,27 @@ export default class MenuBuilder {
           {
             label: 'Learn More',
             click() {
-              shell.openExternal('https://electronjs.org');
+              shell.openExternal('https://github.com/tcgm/EDColonyConstructionTracker');
             },
           },
           {
             label: 'Documentation',
             click() {
               shell.openExternal(
-                'https://github.com/electron/electron/tree/main/docs#readme',
+                'https://github.com/tcgm/EDColonyConstructionTracker/blob/main/README.md',
               );
             },
           },
           {
             label: 'Community Discussions',
             click() {
-              shell.openExternal('https://www.electronjs.org/community');
+              shell.openExternal('https://github.com/tcgm/EDColonyConstructionTracker/discussions');
             },
           },
           {
             label: 'Search Issues',
             click() {
-              shell.openExternal('https://github.com/electron/electron/issues');
+              shell.openExternal('https://github.com/tcgm/EDColonyConstructionTracker/issues');
             },
           },
         ],

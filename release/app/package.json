@@ -1,12 +1,19 @@
 {
-  "name": "electron-react-boilerplate",
-  "version": "4.6.0",
-  "description": "A foundation for scalable desktop apps",
+  "name": "elite-dangerous-colony-construction-tracker",
+  "description": "Elite Dangerous Colony Construction Tracker",
+  "version": "1.0.0",
   "license": "MIT",
+  "homepage": "https://github.com/tcgm/EDColonyConstructionTracker#readme",
+  "bugs": {
+    "url": "https://github.com/tcgm/EDColonyConstructionTracker/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tcgm/EDColonyConstructionTracker.git"
+  },
   "author": {
-    "name": "Electron React Boilerplate Maintainers",
-    "email": "electronreactboilerplate@gmail.com",
-    "url": "https://github.com/electron-react-boilerplate"
+    "name": "TCGM",
+    "url": "https://thecrazygamemaster.com"
   },
   "main": "./dist/main/main.js",
   "scripts": {
