@@ -1,7 +1,7 @@
 {
   "name": "elite-dangerous-colony-construction-tracker",
   "description": "Elite Dangerous Colony Construction Tracker",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "keywords": [
     "electron",
     "boilerplate",
@@ -102,6 +102,7 @@
     "@electron/notarize": "^3.0.0",
     "bootstrap": "^5.3.3",
     "buffer": "^6.0.3",
+    "dotenv": "^16.4.7",
     "electron-debug": "^4.1.0",
     "electron-log": "^5.3.2",
     "electron-updater": "^6.3.9",
@@ -209,21 +210,21 @@
     },
     "dmg": {
       "contents": [
-      {
-        "x": 130,
-        "y": 220
-      },
-      {
-        "x": 410,
-        "y": 220,
-        "type": "link",
-        "path": "/Applications"
-      }
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
       ],
       "format": "UDZO",
       "window": {
-      "width": 540,
-      "height": 380
+        "width": 540,
+        "height": 380
       },
       "icon": "assets/icon.icns",
       "background": "assets/dmg-background.png"
@@ -233,13 +234,13 @@
     },
     "linux": {
       "target": [
-      {
-        "target": "portable",
-        "arch": [
-        "x64",
-        "arm64"
-        ]
-      }
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "category": "Development",
       "icon": "assets/icon.ico"

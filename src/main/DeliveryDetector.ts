@@ -140,7 +140,7 @@ async function scanPastJournalFiles() {
   }
 
   let lastDock: { entry: any, cargo: CargoState | null } | null = null;
-  let lastCargo: CargoState | null = null;
+  let lastCargo: CargoState = { timestamp: 0, inventory: {} }; // Initialized with a valid CargoState object
 
   for (const filePath of recentFiles) {
     try {
@@ -158,8 +158,8 @@ async function scanPastJournalFiles() {
           const stationName = lastDock.entry.StationName_Localised ?? lastDock.entry.StationName;
           if (lastDock.cargo && lastCargo) {
             for (const [commodity, oldCount] of Object.entries(lastDock.cargo.inventory)) {
-              const newCount = lastCargo.inventory[commodity] || 0;
-              if (newCount < oldCount) {
+              const newCount = lastCargo?.inventory[commodity] || 0; // Safely access inventory with optional chaining
+              if (newCount != oldCount) {
                 const delivery: DeliveryEvent = {
                   commodity,
                   count: oldCount - newCount,
@@ -174,13 +174,13 @@ async function scanPastJournalFiles() {
           lastDock = null;
         }
 
-        if (entry.event === 'Cargo' && entry.Vessel === 'Ship') {
+        /* if (entry.event === 'Cargo' && entry.Vessel === 'Ship') {
           const inventory: Record<string, number> = {};
           for (const item of entry.Inventory || []) {
             inventory[item.Name] = item.Count;
           }
           lastCargo = { timestamp, inventory };
-        }
+        } */
       }
     } catch (e) {
       console.warn(`[DeliveryDetector] Error processing ${filePath}:`, e);

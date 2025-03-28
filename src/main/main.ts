@@ -17,8 +17,12 @@ import { resolveHtmlPath } from './util';
 const fs = require('fs');
 const Tesseract = require('tesseract.js');
 const os = require('os');
-import { DeliveryEvent, getAllDeliveryEvents, setupDeliveryTracking } from './DeliveryDetector';
 
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+import { DeliveryEvent, getAllDeliveryEvents, setupDeliveryTracking } from './DeliveryDetector';
 
 /* Electron DevTools autofill spam patch */
 // process.stderr.write = ((write) => {

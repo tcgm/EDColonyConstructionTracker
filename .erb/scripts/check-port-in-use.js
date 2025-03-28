@@ -1,5 +1,8 @@
 import chalk from 'chalk';
 import detectPort from 'detect-port';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const port = process.env.PORT || '1212';
 
