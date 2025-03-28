@@ -15,7 +15,7 @@ This project is a tool designed to help track and manage the construction of col
 
 ## Usage
 
-1. Download one of the [Releases](/releases/tag/Releases), or clone the repository and run or build from source.
+1. Download one of the [Releases](https://github.com/tcgm/EDColonyConstructionTracker/releases), or clone the repository and run or build from source.
 2. The program is mostly automated, all you have to do is grab screenshots from your Colonisation Ship's transfer UI and drag and drop them onto the Colony Construction Tracker.
 3. These screenshots will be parsed for their information, and the table populated. Please see the in-app guidance for what screenshots you need to get, or see the included ones after these instructions!
 4. Deliveries will be tracked over time while the program is open. Reading from the filesystem isn't instant, so give it a few seconds to recognize any deliveries you might make.
